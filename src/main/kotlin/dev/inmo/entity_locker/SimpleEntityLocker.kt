@@ -17,7 +17,13 @@ open class SimpleEntityLocker<T, ID>(
         if (globalLockObject.isLocked) {
             when {
                 globalLockObject.isHeldByCurrentThread -> lockGlobal(entity, block)
-                else -> globalLockObject.wrapLocking(timeoutMillis)
+                else -> {
+                    var canContinue = false
+                    globalLockObject.wrapLocking(timeoutMillis) {
+                        canContinue = true
+                    }
+                    if (!canContinue) return
+                }
             }
         }
         val id = entityIdGetter(entity) // all instances of objects in kotlin are Any

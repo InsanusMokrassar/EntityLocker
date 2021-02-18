@@ -208,6 +208,105 @@ class SimpleLockingTest {
             }
         }
 
-        assertEquals(listOf(0), threadsCompletion)
+        assertEquals(listOf(0), threadsCompletion.toList())
+    }
+
+    @Test
+    fun twoThreadsCheckNonGlobalWillBeLockedOnGlobalLock() {
+        val lockObject0 = 0
+        val lockObject1 = 1
+        val locker = SimpleEntityLocker<Int, Int> { it }
+
+        val thread0StartedSync = Object()
+        val thread0CompletedSync = Object()
+        val thread1StartedSync = Object()
+        val thread1WaitCompletedSync = Object()
+        val thread1CompletedSync = Object()
+
+        val threadsCompletion = mutableListOf<Int>()
+
+        val thread0 = Thread {
+            locker.lockGlobal(lockObject0) {
+                synchronized(thread1WaitCompletedSync) {
+                    synchronized(thread1StartedSync) {
+                        synchronized(thread0StartedSync) { thread0StartedSync.notifyAll() }
+                        thread1StartedSync.wait()
+                    }
+                    thread1WaitCompletedSync.wait()
+                }
+                threadsCompletion.add(0)
+            }
+            synchronized(thread0CompletedSync) { thread0CompletedSync.notifyAll() }
+        }
+        synchronized(thread0StartedSync) {
+            thread0.start()
+            thread0StartedSync.wait()
+        }
+
+        Thread {
+            synchronized(thread1StartedSync) { thread1StartedSync.notifyAll() }
+            locker.lock(lockObject1, 1000L) {
+                threadsCompletion.add(1)
+            }
+            synchronized(thread0CompletedSync) {
+                synchronized(thread1WaitCompletedSync) { thread1WaitCompletedSync.notifyAll() }
+                thread0CompletedSync.wait()
+            }
+            synchronized(thread1CompletedSync) { thread1CompletedSync.notifyAll() }
+        }.let {
+            synchronized(thread1CompletedSync) {
+                it.start()
+                thread1CompletedSync.wait()
+            }
+        }
+
+        assertEquals(listOf(0), threadsCompletion.toList())
+    }
+
+    @Test
+    fun twoThreadsCheckGlobalWillBeUnlocked() {
+        val lockObject0 = 0
+        val lockObject1 = 1
+        val locker = SimpleEntityLocker<Int, Int> { it }
+
+        val thread0StartedSync = Object()
+        val thread1StartedSync = Object()
+        val thread1WaitCompletedSync = Object()
+        val thread1CompletedSync = Object()
+
+        val threadsCompletion = mutableListOf<Int>()
+
+        val thread0 = Thread {
+            locker.lock(lockObject0) {
+                synchronized(thread1WaitCompletedSync) {
+                    synchronized(thread1StartedSync) {
+                        synchronized(thread0StartedSync) { thread0StartedSync.notifyAll() }
+                        thread1StartedSync.wait()
+                    }
+                    thread1WaitCompletedSync.wait()
+                }
+                threadsCompletion.add(0)
+            }
+        }
+        synchronized(thread0StartedSync) {
+            thread0.start()
+            thread0StartedSync.wait()
+        }
+
+        Thread {
+            synchronized(thread1StartedSync) { thread1StartedSync.notifyAll() }
+            locker.lockGlobal(lockObject1, 1000L) {
+                threadsCompletion.add(1)
+            }
+            synchronized(thread1WaitCompletedSync) { thread1WaitCompletedSync.notifyAll() }
+            synchronized(thread1CompletedSync) { thread1CompletedSync.notifyAll() }
+        }.let {
+            synchronized(thread1CompletedSync) {
+                it.start()
+                thread1CompletedSync.wait()
+            }
+        }
+
+        assertEquals(listOf(1, 0), threadsCompletion)
     }
 }
