@@ -31,6 +31,28 @@ class EscalatableLockingTest {
             result.add(it)
         }
 
-        assertEquals(listOf(1, 0), result)
+        assertEquals(listOf(1, 0).toList(), result.toList())
+    }
+    @Test
+    fun simpleTestOfNotLockingEscalationOnTheSameThread() {
+        val locker = EscalatableEntityLocker<Int, Int>(2) { it }
+
+        val lockObject0 = 0
+        val lockObject1 = 1
+        val lockObject2 = 2
+
+        val result = mutableListOf<Int>()
+
+        locker.lock(lockObject0) {
+            locker.lock(lockObject1) {
+                locker.lockGlobal(lockObject2, 1000L) { global ->
+                    result.add(global)
+                }
+                result.add(it)
+            }
+            result.add(it)
+        }
+
+        assertEquals(listOf(2, 1, 0).toList(), result.toList())
     }
 }

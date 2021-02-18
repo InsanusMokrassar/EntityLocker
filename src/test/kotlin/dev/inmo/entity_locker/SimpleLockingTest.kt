@@ -42,7 +42,7 @@ class SimpleLockingTest {
             }
         }
 
-        assertEquals(listOf(0, 1), threadsCompletion)
+        assertEquals(listOf(0, 1).toList(), threadsCompletion.toList())
     }
 
     @Test
@@ -88,7 +88,7 @@ class SimpleLockingTest {
             }
         }
 
-        assertEquals(listOf(0), threadsCompletion)
+        assertEquals(listOf(0).toList(), threadsCompletion.toList())
     }
 
     @Test
@@ -114,7 +114,7 @@ class SimpleLockingTest {
             }
         }
 
-        assertEquals(listOf(0, 1), threadsCompletion)
+        assertEquals(listOf(0, 1).toList(), threadsCompletion.toList())
     }
 
     @Test
@@ -124,6 +124,7 @@ class SimpleLockingTest {
         val locker = SimpleEntityLocker<Int, Int> { it }
 
         val thread0StartedSync = Object()
+        val thread0CompletedSync = Object()
         val thread1StartedSync = Object()
         val thread1InLockSync = Object()
         val thread1CompletedSync = Object()
@@ -140,6 +141,7 @@ class SimpleLockingTest {
                     thread1InLockSync.wait()
                 }
                 threadsCompletion.add(0)
+                synchronized(thread0CompletedSync) { thread0CompletedSync.notifyAll() }
             }
         }
         synchronized(thread0StartedSync) {
@@ -151,7 +153,10 @@ class SimpleLockingTest {
             synchronized(thread1StartedSync) { thread1StartedSync.notifyAll() }
             locker.lock(lockObject1) {
                 threadsCompletion.add(1)
-                synchronized(thread1InLockSync) { thread1InLockSync.notifyAll() }
+                synchronized(thread0CompletedSync) {
+                    synchronized(thread1InLockSync) { thread1InLockSync.notifyAll() }
+                    thread0CompletedSync.wait()
+                }
             }
             synchronized(thread1CompletedSync) { thread1CompletedSync.notifyAll() }
         }.let {
@@ -161,7 +166,7 @@ class SimpleLockingTest {
             }
         }
 
-        assertEquals(listOf(1, 0), threadsCompletion)
+        assertEquals(listOf(1, 0).toList(), threadsCompletion.toList())
     }
 
     @Test
@@ -171,6 +176,7 @@ class SimpleLockingTest {
         val locker = SimpleEntityLocker<Int, Int> { it }
 
         val thread0StartedSync = Object()
+        val thread0CompletedSync = Object()
         val thread1StartedSync = Object()
         val thread1WaitCompletedSync = Object()
         val thread1CompletedSync = Object()
@@ -185,6 +191,7 @@ class SimpleLockingTest {
                         thread1StartedSync.wait()
                     }
                     thread1WaitCompletedSync.wait()
+                    synchronized(thread0CompletedSync) { thread0CompletedSync.notifyAll() }
                 }
                 threadsCompletion.add(0)
             }
@@ -199,7 +206,10 @@ class SimpleLockingTest {
             locker.lockGlobal(lockObject1, 1000L) {
                 threadsCompletion.add(1)
             }
-            synchronized(thread1WaitCompletedSync) { thread1WaitCompletedSync.notifyAll() }
+            synchronized(thread0CompletedSync) {
+                synchronized(thread1WaitCompletedSync) { thread1WaitCompletedSync.notifyAll() }
+                thread0CompletedSync.wait()
+            }
             synchronized(thread1CompletedSync) { thread1CompletedSync.notifyAll() }
         }.let {
             synchronized(thread1CompletedSync) {
@@ -208,7 +218,7 @@ class SimpleLockingTest {
             }
         }
 
-        assertEquals(listOf(0), threadsCompletion.toList())
+        assertEquals(listOf(0).toList(), threadsCompletion.toList())
     }
 
     @Test
@@ -260,7 +270,7 @@ class SimpleLockingTest {
             }
         }
 
-        assertEquals(listOf(0), threadsCompletion.toList())
+        assertEquals(listOf(0).toList(), threadsCompletion.toList())
     }
 
     @Test
@@ -307,6 +317,6 @@ class SimpleLockingTest {
             }
         }
 
-        assertEquals(listOf(1, 0), threadsCompletion)
+        assertEquals(listOf(1, 0).toList(), threadsCompletion.toList())
     }
 }
